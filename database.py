@@ -40,7 +40,6 @@ def db_slice(asset, start, end):
     conn.close()
     return data
 
-
 def db_get_last_time(asset):
     logger.debug(f"Grabbing last timestamp.")
     conn, c = db_connect(asset)

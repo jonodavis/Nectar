@@ -66,10 +66,10 @@ def backfill(asset, reset="n"):
     backfill_asset(asset, start_date, reset)
 
 if __name__ == "__main__":
-    assets = ["BTCUSDT", "ETHUSDT"]
+    assets = ["BTCUSDT"]
     for asset in assets:
         logger.debug(f"Starting backfill of {asset}")
-        backfill(asset)
+        backfill(asset, 'y')
         logger.debug(f"Completed backfill of {asset}")
 
 

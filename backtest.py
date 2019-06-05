@@ -15,7 +15,6 @@ def gen_candles(asset, start, end, candle_size):
     # total_candles = int(((stop_candle - start_candle) / 60000) / candle_size - 1) OLD FORMULA
     total_candles = int(len(raw_data) / candle_size)
 
-
     candle_data = []
     for i in range(0, total_candles):
         candle_time = raw_data[0][0]
