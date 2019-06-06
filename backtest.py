@@ -3,6 +3,8 @@ from logzero import logger
 import pandas as pd 
 import plotly.offline as py
 import plotly.graph_objs as go
+import numpy as np
+import random
 
 def gen_candles(asset, start, end, candle_size):
     raw_data = database.db_slice(asset, start, end)
@@ -35,9 +37,61 @@ def gen_candles(asset, start, end, candle_size):
 
     return df
 
-if __name__ == "__main__":
-    df = gen_candles("ETHUSDT", 1546300800000, 1546308000000, 2)
-    trace = go.Candlestick(x=df.timestamp, open=df.open, high=df.high, low=df.low, close=df.close)
-    data = [trace]
+def simple(sma_long_size=20, sma_short_size=5, candle_size=5):
+    t_start = 1543795200000
+    t_end = 1544572800000
 
-    py.plot(data)
+    t_back = 604800000 # ms in a week
+    candles = gen_candles("BTCUSDT", t_start - t_back, t_end, candle_size)
+    pips_profit = 0
+    flag = True
+
+    for index, row in candles.iterrows():
+        if row.timestamp < t_start:
+            continue
+
+        sma_long = sma(candles[index - (sma_long_size - 1):index + 1].close)
+        sma_short = sma(candles[index - (sma_short_size - 1):index + 1].close)
+
+        if row.timestamp >= t_start and flag == True:
+            if sma_long > sma_short:
+                position = "short"
+            else:
+                position = "long"
+            prev_close = row.close
+            flag = False
+            continue
+
+        if sma_long > sma_short and position != "short":
+            pips_profit += (row.close - prev_close)
+            position = "short"
+            prev_close = row.close
+        elif sma_long < sma_short and position != "long":
+            pips_profit += (prev_close - row.close)
+            position = "long"
+            prev_close = row.close
+
+    # print(f"Pip Profit = {pips_profit} :: SMA Long = {sma_long_size}, SMA Short {sma_short_size}, Candle Size = {candle_size}")
+
+    return [pips_profit, sma_long_size, sma_short_size, candle_size]
+
+
+def sma(data):
+    return np.mean(data)
+
+
+if __name__ == "__main__":
+    best = [0, 0, 0, 0]
+    while True:
+        result = simple(random.randint(10, 30), random.randint(4, 9), random.randint(1, 20))
+        if result[0] > best[0]:
+            # we have a better result
+            best = [result[0], result[1], result[2], result[3]]
+            print(f"Pip Profit = {result[0]} :: SMA Long = {result[1]}, SMA Short {result[2]}, Candle Size = {result[3]}")
+
+
+    # df = gen_candles("ETHUSDT", 1546300800000, 1546308000000, 10)
+    # trace = go.Candlestick(x=df.timestamp, open=df.open, high=df.high, low=df.low, close=df.close)
+    # data = [trace]
+
+    # py.plot(data)
