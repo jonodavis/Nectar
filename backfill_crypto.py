@@ -2,6 +2,7 @@ import requests
 from logzero import logger
 import ast
 import database
+import v20
 
 url = "https://api.binance.com/api/v1/klines"
 
@@ -19,11 +20,11 @@ def conform_data(data):
     output = [[data[0][0], data[0][1], data[0][2], data[0][3], data[0][4], data[0][5]]]
     for i in range(1, len(data)):
         displacement = data[i][0] - data[i - 1][0]
-        if displacement != 60000:
+        if displacement != 60:
             # there is a missing candlestick here
-            missing_no = (displacement - 60000) / 60000
+            missing_no = (displacement - 60) / 60
             for j in range(0, int(missing_no)):
-                missing_ts = data[i - 1][0] + (j + 1) * 60000
+                missing_ts = data[i - 1][0] + (j + 1) * 60
                 logger.debug(f"Adding missing candle at {missing_ts}")
                 output.append([missing_ts, data[i - 1][4], data[i - 1][4], data[i - 1][4], data[i - 1][4], 0])
         output.append([data[i][0], data[i][1], data[i][2], data[i][3], data[i][4], data[i][5]])
@@ -38,7 +39,7 @@ def backfill_asset(asset, start_date, reset):
         if len(data) == 1:
             break
         for candle in data:
-            data_to_write.append(candle)
+            data_to_write.append([int(candle[0] / 1000), candle[1], candle[2], candle[3], candle[4], candle[5]])
         start_date = data[-1][0]
 
     data_to_write = conform_data(data_to_write)
@@ -61,7 +62,7 @@ def backfill(asset, reset="n"):
         start_date = get_earliest_timestamp(asset)
         reset = True
     else:
-        start_date = database.db_get_last_time(asset)
+        start_date = database.db_get_last_time(asset) * 1000
         reset = False
     backfill_asset(asset, start_date, reset)
 

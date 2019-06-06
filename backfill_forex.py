@@ -1,72 +1,97 @@
-import requests
-from logzero import logger
-import ast
+import configparser
+from datetime import datetime, timedelta
 import database
-import v20
+from logzero import logger
+import numpy as np
+import oandapyV20
+import oandapyV20.endpoints.instruments as instruments
+import re
+import time
 
-def fetch_data(asset, start_date):
-    logger.debug(f"Fetching data on asset {asset} from {start_date}.")
-    response = requests.get(url, params={'symbol': asset,
-                                         'interval': "1m",
-                                         'startTime': start_date,
-                                         'endTime': None,
-                                         'limit': 1000})
-    return ast.literal_eval(response.text)
+def backfill_forex(asset, startdate, reset=False):
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+    access_token = config['OANDA']['AccessToken']
 
-def conform_data(data):
-    logger.debug("Conforming data, filling missing candles")
-    output = [[data[0][0], data[0][1], data[0][2], data[0][3], data[0][4], data[0][5]]]
-    for i in range(1, len(data)):
-        displacement = data[i][0] - data[i - 1][0]
-        if displacement != 60000:
-            # there is a missing candlestick here
-            missing_no = (displacement - 60000) / 60000
-            for j in range(0, int(missing_no)):
-                missing_ts = data[i - 1][0] + (j + 1) * 60000
-                logger.debug(f"Adding missing candle at {missing_ts}")
-                output.append([missing_ts, data[i - 1][4], data[i - 1][4], data[i - 1][4], data[i - 1][4], 0])
-        output.append([data[i][0], data[i][1], data[i][2], data[i][3], data[i][4], data[i][5]])
-    logger.debug(f"Data conformation successful.")
-    return output
+    client = oandapyV20.API(access_token=access_token)
 
-def backfill_asset(asset, start_date, reset):
-    data_to_write = []
+    forex_data = []
+
     while True:
-        data = fetch_data(asset, start_date)
-        logger.debug(len(data))
-        if len(data) == 1:
-            break
-        for candle in data:
-            data_to_write.append(candle)
-        start_date = data[-1][0]
+        logger.info(f"Backfilling {asset} data from {startdate}")
+        parameters = {'granularity': 'M1', 'from': startdate.timestamp(), 'count': 5000}
+        r = instruments.InstrumentsCandles(instrument=asset, params=parameters)
+        data = client.request(r)
 
-    data_to_write = conform_data(data_to_write)
+        if len(data['candles']) == 0:
+            break
+        
+        for candle in massage_oanda(data):
+            forex_data.append(candle)
+
+        startdate = datetime.strptime(data['candles'][-1]['time'].replace("000Z", "+0000"),
+                                      "%Y-%m-%dT%H:%M:%S.%f%z") + timedelta(minutes=1)
+        if startdate.timestamp() > time.time():
+            break
+    towrite = np.array(conform_oanda_data(forex_data), dtype=np.float64)
     if reset:
         database.db_create(asset)
-        database.db_write(asset, data_to_write)
+        database.db_write(asset, towrite)
     else:
-        database.db_write(asset, data_to_write[1:])
+        database.db_write(asset, towrite[1:])
 
-def get_earliest_timestamp(asset):
-    response = requests.get(url, params={'symbol': asset,
-                                         'interval': "1m",
-                                         'startTime': 0,
-                                         'endTime': None,
-                                         'limit': 1})
-    return ast.literal_eval(response.text)[0][0]
 
-def backfill(asset, reset="n"):
+def conform_oanda_data(data):
+    output = [data[0]]
+    logger.info("Conforming data, filling missing candles")
+    for i in range(1, len(data) - 1):
+        displacement = data[i][0] - data[i - 1][0]
+        if displacement != 60 and displacement < 3600:
+            missing_no = (displacement - 60) / 60
+            for j in range(0, int(missing_no)):
+                missing_ts = data[i - 1][0] + (j + 1) * 60
+                output.append([missing_ts, data[i - 1][4], data[i - 1][4], data[i - 1][4], data[i - 1][4], 0])
+        output.append(data[i])
+    return output
+
+
+def parse_oanda_date(oandadate):
+    return datetime.strptime(oandadate.replace("000Z", "+0000"), "%Y-%m-%dT%H:%M:%S.%f%z")
+
+
+def massage_oanda(data):
+    candles = data['candles']
+    output = []
+    for candle in candles:
+        output.append(
+            [parse_oanda_date(candle['time']).timestamp(),
+             candle['mid']['o'],
+             candle['mid']['h'],
+             candle['mid']['l'],
+             candle['mid']['c'],
+             candle['volume']])
+    return output
+
+
+def get_start_date(asset):
+    timestamp = database.db_get_last_time(asset)
+    return datetime.fromtimestamp(timestamp)
+
+
+def backfill(asset, reset):
     if reset == 'y':
-        start_date = get_earliest_timestamp(asset)
+        start_date = datetime.fromtimestamp(1262304000)
         reset = True
     else:
-        start_date = database.db_get_last_time(asset)
+        start_date = get_start_date(asset)
         reset = False
-    backfill_asset(asset, start_date, reset)
+    logger.info(f"Request: Backfill {asset} date starting on {start_date}")
+    backfill_forex(asset, start_date, reset)
 
-if __name__ == "__main__":
-    assets = ["BTCUSDT", "ETHUSDT"]
+
+if __name__=="__main__":
+    assets = ["EUR_USD"]
+    reset = 'y'
     for asset in assets:
-        logger.debug(f"Starting backfill of {asset}")
-        backfill(asset)
-        logger.debug(f"Completed backfill of {asset}")
+        logger.info(f"Backfilling {asset}...")
+        backfill(asset, reset)

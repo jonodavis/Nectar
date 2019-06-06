@@ -10,10 +10,10 @@ import configparser
 
 def gen_candles(orig_raw_data, asset, start, end, candle_size):
     raw_data = orig_raw_data[:]
-    start_candle = int(start + ((start / 60000) % candle_size) * 60000)
-    stop_candle = int(end - ((start / 60000) % candle_size) * 60000 + candle_size * 60000)
+    start_candle = int(start + ((start / 60) % candle_size) * 60)
+    stop_candle = int(end - ((start / 60) % candle_size) * 60 + candle_size * 60)
 
-    for i in range(0, int((start / 60000) % candle_size)):
+    for i in range(0, int((start / 60) % candle_size)):
         raw_data.pop(0)
 
     total_candles = int(len(raw_data) / candle_size)
@@ -76,7 +76,7 @@ def macrossover(t_start, t_end, t_back, data, sma_long_size=20, sma_short_size=5
 
     # print(f"Pip Profit = {pips_profit} :: SMA Long = {sma_long_size}, SMA Short {sma_short_size}, Candle Size = {candle_size}")
 
-    return [pips_profit, sma_long_size, sma_short_size, candle_size, n_trans]
+    return [pips_profit - (0.00015 * n_trans), sma_long_size, sma_short_size, candle_size, n_trans]
 
 
 if __name__ == "__main__":
@@ -84,8 +84,8 @@ if __name__ == "__main__":
     config.read("config.ini")
     t_start = int(config["backtest"]["StartTimestamp"])
     t_end = int(config["backtest"]["EndTimestamp"])
-    t_back = 604800000 # ms in a week
-    asset = "BTCUSDT"
+    t_back = 604800 # seconds in a week
+    asset = "EUR_USD"
 
     raw_data = database.db_slice(asset, t_start, t_end)
     
@@ -106,4 +106,4 @@ if __name__ == "__main__":
             if result[0] > best[0]:
                 # we have a better result
                 best = [result[0], result[1], result[2], result[3], result[4]]
-                print(f"Pip Profit = {result[0]} :: SMA Long = {result[1]}, SMA Short {result[2]}, Candle Size = {result[3]}, Transactions = {result[4]}")
+                print(f"Pip Profit = {round(result[0], 4)} :: SMA Long = {result[1]}, SMA Short {result[2]}, Candle Size = {result[3]}, Transactions = {result[4]}")
