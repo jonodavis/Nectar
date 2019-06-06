@@ -38,7 +38,7 @@ def gen_candles(orig_raw_data, asset, start, end, candle_size):
 
     return df
 
-def simple(t_start, t_end, t_back, data, sma_long_size=20, sma_short_size=5, candle_size=5):
+def macrossover(t_start, t_end, t_back, data, sma_long_size=20, sma_short_size=5, candle_size=5):
     candles = gen_candles(data, "BTCUSDT", t_start - t_back, t_end, candle_size)
     pips_profit = 0
     flag = True
@@ -102,7 +102,7 @@ if __name__ == "__main__":
                 candle_size = random.randrange(int(config["bt_macrossover"]["CandleSizeRange"].split(",")[0]),
                                                int(config["bt_macrossover"]["CandleSizeRange"].split(",")[1]) + 1,
                                                int(config["bt_macrossover"]["CandleSizeRange"].split(",")[2]))
-            result = simple(t_start, t_end, t_back, raw_data, sma_long_size, sma_short_size, candle_size)
+            result = macrossover(t_start, t_end, t_back, raw_data, sma_long_size, sma_short_size, candle_size)
             if result[0] > best[0]:
                 # we have a better result
                 best = [result[0], result[1], result[2], result[3], result[4]]
