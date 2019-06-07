@@ -91,7 +91,7 @@ def backfill(asset, reset):
 
 if __name__=="__main__":
     assets = ["EUR_USD"]
-    reset = 'y'
+    reset = 'n'
     for asset in assets:
         logger.info(f"Backfilling {asset}...")
         backfill(asset, reset)

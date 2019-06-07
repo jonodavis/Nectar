@@ -2,7 +2,6 @@ import requests
 from logzero import logger
 import ast
 import database
-import v20
 
 url = "https://api.binance.com/api/v1/klines"
 
