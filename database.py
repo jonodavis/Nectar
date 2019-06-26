@@ -1,6 +1,7 @@
 import sqlite3
 from logzero import logger
 import os
+from datetime import datetime
 
 def db_connect(asset):
     conn = sqlite3.connect(f"data/{asset}.db")
@@ -32,7 +33,7 @@ def db_write(asset, data):
     conn.close()
     
 def db_slice(asset, start, end):
-    logger.debug(f"Grabbing slice of data form {start} to {end}")
+    logger.debug(f"Grabbing slice of data form {datetime.fromtimestamp(start)} to {datetime.fromtimestamp(end)}")
     conn, c = db_connect(asset)
     c.execute(f'''SELECT * FROM {asset} WHERE timestamp >= {start} and timestamp <= {end}''')
     data = c.fetchall()

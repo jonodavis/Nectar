@@ -7,6 +7,7 @@ import numpy as np
 import random
 import configparser
 from collections import deque
+import time 
 
 def gen_candles(orig_raw_data, asset, start, end, candle_size):
     raw_data = deque(orig_raw_data[:])
@@ -34,9 +35,45 @@ def gen_candles(orig_raw_data, asset, start, end, candle_size):
     candle_data_pd = []
     for i in candle_data:
         candle_data_pd.append([i[0], i[1]["open"], i[1]["high"], i[1]["low"], i[1]["close"], i[1]["volume"]])
-    df = pd.DataFrame(candle_data_pd, columns=["timestamp", "open", "high", "low", "close", "volume"])
+    df = pd.DataFrame(candle_data_pd, columns=["unixtimestamp", "open", "high", "low", "close", "volume"])
 
     return df
+
+# Attempt to optimize generating of candles - ended up slower
+def gen_candles_old(raw_data, asset, start, end, candle_size):
+    s = time.time()
+
+    candle_range = np.arange(len(raw_data)) // candle_size
+    df = pd.DataFrame()
+
+    # Candle Open Prices
+    df['open'] = raw_data['open'].iloc[::candle_size]
+
+    # Candle High Prices
+    df_high = raw_data['high'].groupby(candle_range).max()
+    df_high.index = df.index
+
+    # Candle Low Prices
+    df_low = raw_data['low'].groupby(candle_range).min()
+    df_low.index = df.index
+
+    # Candle Close Prices
+    df_close = pd.DataFrame(raw_data['close'].iloc[candle_size - 1::candle_size])
+    df_close.index = df_close.index + pd.Timedelta(minutes=(candle_size - 1) * -1) # fix timestamps
+
+    # Candle Volume
+    df_vol = raw_data['volume'].groupby(candle_range).sum()
+    df_vol.index = df.index
+
+    # Combine Candle Info
+    candles = pd.concat([df, df_high, df_low, df_close, df_vol], axis=1).dropna(axis=0, how='any')
+    candles['unixtimestamp'] = candles.index.values.astype(np.int64) // 10 ** 9
+    candles = candles.reset_index()
+
+    logger.debug(f"Time to create candles: {time.time() - s} seconds")
+
+    return candles
+
 
 def exponential_moving_average(df, ema_size):
     ema = df.close.ewm(span = ema_size, min_periods = ema_size - 1, adjust=False).mean()
@@ -56,13 +93,13 @@ def macrossover(t_start, t_end, t_back, data, sma_long_size=20, sma_short_size=5
     sma_short_v = exponential_moving_average(candles, sma_short_size)
 
     for index, row in candles.iterrows():
-        if row.timestamp < t_start:
+        if row.unixtimestamp < t_start:
             continue
 
         sma_long = sma_long_v[index]
         sma_short = sma_short_v[index]
 
-        if row.timestamp >= t_start and flag == True:
+        if row.unixtimestamp >= t_start and flag == True:
             if sma_long > sma_short:
                 position = "short"
             else:
@@ -95,7 +132,13 @@ if __name__ == "__main__":
     t_back = 604800 # seconds in a week
     asset = "EUR_USD"
 
+
     raw_data = database.db_slice(asset, t_start, t_end)
+    # Convert data from database to pandas dataframe - USE ONLY FOR NEW GEN_CANLDES
+    # labels = ['timestamp', 'open', 'high', 'low', 'close', 'volume']
+    # raw_data = pd.DataFrame.from_records(raw_data, columns=labels)
+    # raw_data.timestamp = pd.to_datetime(raw_data.timestamp, unit='s')
+    # raw_data.index = raw_data.timestamp
     
     if config["backtest"]["Algo"] == "macrossover":
         best = [0, 0, 0, 0]

@@ -2,11 +2,12 @@ import requests
 from logzero import logger
 import ast
 import database
+from datetime import datetime 
 
 url = "https://api.binance.com/api/v1/klines"
 
 def fetch_data(asset, start_date):
-    logger.debug(f"Fetching data on asset {asset} from {start_date}.")
+    logger.debug(f"Fetching data on asset {asset} from {datetime.fromtimestamp(start_date/1000)}.")
     response = requests.get(url, params={'symbol': asset,
                                          'interval': "1m",
                                          'startTime': start_date,
@@ -24,7 +25,6 @@ def conform_data(data):
             missing_no = (displacement - 60) / 60
             for j in range(0, int(missing_no)):
                 missing_ts = data[i - 1][0] + (j + 1) * 60
-                logger.debug(f"Adding missing candle at {missing_ts}")
                 output.append([missing_ts, data[i - 1][4], data[i - 1][4], data[i - 1][4], data[i - 1][4], 0])
         output.append([data[i][0], data[i][1], data[i][2], data[i][3], data[i][4], data[i][5]])
     logger.debug(f"Data conformation successful.")
@@ -34,7 +34,6 @@ def backfill_asset(asset, start_date, reset):
     data_to_write = []
     while True:
         data = fetch_data(asset, start_date)
-        logger.debug(len(data))
         if len(data) == 1:
             break
         for candle in data:

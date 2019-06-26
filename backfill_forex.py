@@ -18,7 +18,7 @@ def backfill_forex(asset, startdate, reset=False):
     forex_data = []
 
     while True:
-        logger.info(f"Backfilling {asset} data from {startdate}")
+        logger.debug(f"Backfilling {asset} data from {startdate}")
         parameters = {'granularity': 'M1', 'from': startdate.timestamp(), 'count': 5000}
         r = instruments.InstrumentsCandles(instrument=asset, params=parameters)
         data = client.request(r)
@@ -43,7 +43,7 @@ def backfill_forex(asset, startdate, reset=False):
 
 def conform_oanda_data(data):
     output = [data[0]]
-    logger.info("Conforming data, filling missing candles")
+    logger.debug("Conforming data, filling missing candles")
     for i in range(1, len(data) - 1):
         displacement = data[i][0] - data[i - 1][0]
         if displacement != 60 and displacement < 3600:
@@ -85,7 +85,7 @@ def backfill(asset, reset):
     else:
         start_date = get_start_date(asset)
         reset = False
-    logger.info(f"Request: Backfill {asset} date starting on {start_date}")
+    logger.debug(f"Request: Backfill {asset} date starting on {start_date}")
     backfill_forex(asset, start_date, reset)
 
 
@@ -93,5 +93,6 @@ if __name__=="__main__":
     assets = ["EUR_USD"]
     reset = 'n'
     for asset in assets:
-        logger.info(f"Backfilling {asset}...")
+        logger.debug(f"Backfilling {asset}...")
         backfill(asset, reset)
+        logger.debug(f"Completed backfill of {asset}")
