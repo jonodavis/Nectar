@@ -5,7 +5,6 @@ import plotly.offline as py
 import plotly.graph_objs as go
 import numpy as np
 import random
-import talib
 import configparser
 from collections import deque
 
@@ -39,14 +38,22 @@ def gen_candles(orig_raw_data, asset, start, end, candle_size):
 
     return df
 
+def exponential_moving_average(df, ema_size):
+    ema = df.close.ewm(span = ema_size, min_periods = ema_size - 1, adjust=False).mean()
+    return ema
+
+def moving_average(df, ma_size):
+    ma = df.close.rolling(ma_size).mean()
+    return ma
+
 def macrossover(t_start, t_end, t_back, data, sma_long_size=20, sma_short_size=5, candle_size=5):
     candles = gen_candles(data, "BTCUSDT", t_start - t_back, t_end, candle_size)
     pips_profit = 0
     flag = True
     n_trans = 0
 
-    sma_long_v = talib.EMA(np.array(candles.close), timeperiod=sma_long_size)
-    sma_short_v = talib.EMA(np.array(candles.close), timeperiod=sma_short_size)
+    sma_long_v = exponential_moving_average(candles, sma_long_size)
+    sma_short_v = exponential_moving_average(candles, sma_short_size)
 
     for index, row in candles.iterrows():
         if row.timestamp < t_start:
@@ -77,7 +84,7 @@ def macrossover(t_start, t_end, t_back, data, sma_long_size=20, sma_short_size=5
 
     # print(f"Pip Profit = {pips_profit} :: SMA Long = {sma_long_size}, SMA Short {sma_short_size}, Candle Size = {candle_size}")
 
-    return [pips_profit - (0 * n_trans), sma_long_size, sma_short_size, candle_size, n_trans]
+    return [pips_profit - (0.00015 * n_trans), sma_long_size, sma_short_size, candle_size, n_trans]
 
 
 if __name__ == "__main__":
