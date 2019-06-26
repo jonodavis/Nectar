@@ -39,14 +39,18 @@ def gen_candles(orig_raw_data, asset, start, end, candle_size):
 
     return df
 
+def exponential_moving_average(df, ema_size):
+    ema = df.close.ewm(span = ema_size, min_periods = ema_size - 1, adjust=False).mean()
+    return ema
+    
 def macrossover(t_start, t_end, t_back, data, sma_long_size=20, sma_short_size=5, candle_size=5):
     candles = gen_candles(data, "BTCUSDT", t_start - t_back, t_end, candle_size)
     pips_profit = 0
     flag = True
     n_trans = 0
 
-    sma_long_v = talib.EMA(np.array(candles.close), timeperiod=sma_long_size)
-    sma_short_v = talib.EMA(np.array(candles.close), timeperiod=sma_short_size)
+    sma_long_v = exponential_moving_average(candles, sma_long_size)
+    sma_short_v = exponential_moving_average(candles, sma_short_size)
 
     for index, row in candles.iterrows():
         if row.timestamp < t_start:
