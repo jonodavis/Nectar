@@ -9,7 +9,7 @@ import configparser
 from collections import deque
 import time 
 
-def gen_candles(orig_raw_data, asset, start, end, candle_size):
+def gen_candles(orig_raw_data, start, end, candle_size):
     raw_data = deque(orig_raw_data[:])
     start_candle = int(start + ((start / 60) % candle_size) * 60)
     stop_candle = int(end - ((start / 60) % candle_size) * 60 + candle_size * 60)
@@ -84,7 +84,7 @@ def moving_average(df, ma_size):
     return ma
 
 def macrossover(t_start, t_end, t_back, data, sma_long_size=20, sma_short_size=5, candle_size=5):
-    candles = gen_candles(data, "BTCUSDT", t_start - t_back, t_end, candle_size)
+    candles = gen_candles(data, t_start - t_back, t_end, candle_size)
     pips_profit = 0
     flag = True
     n_trans = 0
@@ -109,19 +109,19 @@ def macrossover(t_start, t_end, t_back, data, sma_long_size=20, sma_short_size=5
             continue
 
         if sma_long > sma_short and position != "short":
-            pips_profit += (row.close - prev_close)
+            pips_profit += (row.close - prev_close) - ((prev_close + row.close) / 2) * 0.002 # CRYPTO FEES 0.1% PER TRANSACTION
             position = "short"
             prev_close = row.close
             n_trans += 1
         elif sma_long < sma_short and position != "long":
-            pips_profit += (prev_close - row.close)
+            pips_profit += (prev_close - row.close) - ((prev_close + row.close) / 2) * 0.002 # CRYPTO FEES 0.1% PER TRANSACTION
             position = "long"
             prev_close = row.close
             n_trans += 1
 
     # print(f"Pip Profit = {pips_profit} :: SMA Long = {sma_long_size}, SMA Short {sma_short_size}, Candle Size = {candle_size}")
 
-    return [pips_profit - (0.00015 * n_trans), sma_long_size, sma_short_size, candle_size, n_trans]
+    return [pips_profit - (0 * n_trans), sma_long_size, sma_short_size, candle_size, n_trans] # 0 if for forex fees normally 1.5
 
 
 if __name__ == "__main__":
@@ -130,7 +130,7 @@ if __name__ == "__main__":
     t_start = int(config["backtest"]["StartTimestamp"])
     t_end = int(config["backtest"]["EndTimestamp"])
     t_back = 604800 # seconds in a week
-    asset = "EUR_USD"
+    asset = "BTCUSDT"
 
 
     raw_data = database.db_slice(asset, t_start, t_end)
@@ -153,6 +153,7 @@ if __name__ == "__main__":
                     for k in range(int(config['bt_macrossover']['CandleSizeRange'].split(",")[0]), int(config['bt_macrossover']['CandleSizeRange'].split(",")[1]) + 1):
                         combs.append([i,j,k])
         total_runs = len(combs)
+        logger.debug(f"Running {total_runs} simulations...")
 
         while True:
             if config["backtest"]["SampleMethod"] == "random":
@@ -174,7 +175,7 @@ if __name__ == "__main__":
                 combs.popleft()
             result = macrossover(t_start, t_end, t_back, raw_data, sma_long_size, sma_short_size, candle_size)
             if (total_runs - len(combs) + 1) % 500 == 0:
-                logger.info(f"Total runs so far: {total_runs - len(combs) + 1}")
+                logger.debug(f"Total runs so far: {total_runs - len(combs) + 1}")
             if config["backtest"]["SampleMethod"] == "manual":
                 best = [result[0], result[1], result[2], result[3], result[4]]
                 print(f"Pip Profit = {round(result[0], 4)} :: SMA Long = {result[1]}, SMA Short {result[2]}, Candle Size = {result[3]}, Transactions = {result[4]}")
