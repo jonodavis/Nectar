@@ -2,9 +2,12 @@ import sqlite3
 from logzero import logger
 import os
 from datetime import datetime
+from pathlib import Path
 
 def db_connect(asset):
-    conn = sqlite3.connect(f"data/{asset}.db")
+    data_folder = Path("data")
+    file_to_open = data_folder / f"{asset}.db"
+    conn = sqlite3.connect(file_to_open)
     c = conn.cursor()
     return conn, c
 

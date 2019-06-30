@@ -4,10 +4,8 @@ from logzero import logger
 import pandas as pd
 import statistics
 
-skip = random.randint(1, 60)
-
 def sim(stoploss, takeprofit, runs, raw_data):
-    skip = random.randint(1, 60)
+    # skip = random.randint(1, 60)
     profits = []
 
     for i in range(0, runs):

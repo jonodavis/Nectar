@@ -11,8 +11,8 @@ import time
 
 def gen_candles(orig_raw_data, start, end, candle_size):
     raw_data = deque(orig_raw_data[:])
-    start_candle = int(start + ((start / 60) % candle_size) * 60)
-    stop_candle = int(end - ((start / 60) % candle_size) * 60 + candle_size * 60)
+    # start_candle = int(start + ((start / 60) % candle_size) * 60)
+    # stop_candle = int(end - ((start / 60) % candle_size) * 60 + candle_size * 60)
 
     for i in range(0, int((start / 60) % candle_size)):
         raw_data.popleft()
