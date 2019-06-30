@@ -91,5 +91,6 @@ if __name__=="__main__":
         profits.append(sim(stoploss, takeprofit, n_sims, raw_data))
     df = pd.DataFrame({"pips": range(pip_range[0], pip_range[1]), "profits": profits})
     print(df.sort_values(by="profits", ascending=False))
+    # memes
 
     
