@@ -34,7 +34,7 @@ def sim(stoploss, takeprofit, runs, raw_data):
             if position == 1 and (position_price - stoploss) >= row.close:
                 pips = pips - stoploss
                 position = 0
-                skip = random.randint(1, 60)
+                # skip = random.randint(1, 60)
                 # logger.debug(f"{index} TAKING LONG LOSS - {pips} total pips earned. Closed at {row.close}")
                 continue
 
@@ -42,7 +42,7 @@ def sim(stoploss, takeprofit, runs, raw_data):
             if position == 1 and (position_price + takeprofit) <= row.close:
                 pips = pips + takeprofit
                 position = 0
-                skip = random.randint(1, 60)
+                # skip = random.randint(1, 60)
                 # logger.debug(f"{index} TAKING LONG PROFIT - {pips} total pips earned. Closed at {row.close}")
                 continue
 
@@ -50,7 +50,7 @@ def sim(stoploss, takeprofit, runs, raw_data):
             if position == 2 and (position_price + stoploss) <= row.close:
                 pips = pips - stoploss
                 position = 0
-                skip = random.randint(1, 60)
+                # skip = random.randint(1, 60)
                 # logger.debug(f"{index} TAKING SHORT LOSS - {pips} total pips earned. Closed at {row.close}")
                 continue
 
@@ -58,7 +58,7 @@ def sim(stoploss, takeprofit, runs, raw_data):
             if position == 2 and (position_price - takeprofit) >= row.close:
                 pips = pips + takeprofit
                 position = 0
-                skip = random.randint(1, 60)
+                # skip = random.randint(1, 60)
                 # logger.debug(f"{index} TAKING SHORT PROFIT - {pips} total pips earned. Closed at {row.close}")
                 continue
         profit = pips - (n_transactions * 0.00015)
