@@ -22,30 +22,35 @@ def update_price(sym):
 
         time.sleep(3)
 
-for sym, price in prices.items():
-    t = threading.Thread(target=update_price, args=(sym,))
-    t.start()
+def main():
+    for sym, price in prices.items():
+        t = threading.Thread(target=update_price, args=(sym,), daemon=True)
+        t.start()
 
 
-while True:
-    os.system('cls' if os.name == 'nt' else 'clear')
-    to_print = ''
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        to_print = ''
 
-    for sym, _ in prices.items():
-        sym_formatted = sym.ljust(8)
-        btc_price = prices[sym]['price']
-        usd_price = prices['BTCUSDT']['price'] * btc_price
+        for sym, _ in prices.items():
+            sym_formatted = sym.ljust(8)
+            btc_price = prices[sym]['price']
+            usd_price = prices['BTCUSDT']['price'] * btc_price
 
-        if 'USDT' in sym:
-            if prices[sym]['delta'] > 0:
-                to_print += f'{sym_formatted} -> ' + colored(' ${:.2f}\n'.format(btc_price), 'green')
+            if 'USDT' in sym:
+                if prices[sym]['delta'] > 0:
+                    to_print += f'{sym_formatted} -> ' + colored(' ${:.2f}\n'.format(btc_price), 'green')
+                else:
+                    to_print += f'{sym_formatted} -> ' + colored(' ${:.2f}\n'.format(btc_price), 'red')
             else:
-                to_print += f'{sym_formatted} -> ' + colored(' ${:.2f}\n'.format(btc_price), 'red')
-        else:
-            if prices[sym]['delta'] > 0:
-                to_print += f'{sym_formatted} -> ' + colored(' {:.8f} BTC'.format(btc_price), 'green') + ' (${:.2f})\n'.format(usd_price)
-            else:
-                to_print += f'{sym_formatted} -> ' + colored(' {:.8f} BTC'.format(btc_price), 'red') + ' (${:.2f})\n'.format(usd_price)
+                if prices[sym]['delta'] > 0:
+                    to_print += f'{sym_formatted} -> ' + colored(' {:.8f} BTC'.format(btc_price), 'green') + ' (${:.2f})\n'.format(usd_price)
+                else:
+                    to_print += f'{sym_formatted} -> ' + colored(' {:.8f} BTC'.format(btc_price), 'red') + ' (${:.2f})\n'.format(usd_price)
 
-    print(to_print)
-    time.sleep(.5)
+        print(to_print)
+        time.sleep(1)
+
+if __name__=="__main__":
+    main()
+
