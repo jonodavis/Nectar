@@ -29,6 +29,7 @@ for sym, price in prices.items():
 
 while True:
     os.system('cls' if os.name == 'nt' else 'clear')
+    to_print = ''
 
     for sym, _ in prices.items():
         sym_formatted = sym.ljust(8)
@@ -37,13 +38,14 @@ while True:
 
         if 'USDT' in sym:
             if prices[sym]['delta'] > 0:
-                print(f'{sym_formatted} -> ', colored('${:.2f}'.format(btc_price), 'green'))
+                to_print += f'{sym_formatted} -> ' + colored(' ${:.2f}\n'.format(btc_price), 'green')
             else:
-                print(f'{sym_formatted} -> ', colored('${:.2f}'.format(btc_price), 'red'))
+                to_print += f'{sym_formatted} -> ' + colored(' ${:.2f}\n'.format(btc_price), 'red')
         else:
             if prices[sym]['delta'] > 0:
-                print(f'{sym_formatted} -> ', colored('{:.8f} BTC'.format(btc_price), 'green'), '(${:.2f})'.format(usd_price))
+                to_print += f'{sym_formatted} -> ' + colored(' {:.8f} BTC'.format(btc_price), 'green') + ' (${:.2f})\n'.format(usd_price)
             else:
-                print(f'{sym_formatted} -> ', colored('{:.8f} BTC'.format(btc_price), 'red'), '(${:.2f})'.format(usd_price))
+                to_print += f'{sym_formatted} -> ' + colored(' {:.8f} BTC'.format(btc_price), 'red') + ' (${:.2f})\n'.format(usd_price)
 
+    print(to_print)
     time.sleep(.5)
