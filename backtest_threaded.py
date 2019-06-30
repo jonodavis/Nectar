@@ -10,8 +10,7 @@ from collections import deque
 import time 
 import threading
 import queue
-
-best = [0]
+from multiprocessing import Process, Queue, freeze_support, current_process
 
 def gen_candles(orig_raw_data, start, end, candle_size):
     raw_data = deque(orig_raw_data[:])
@@ -88,7 +87,6 @@ def moving_average(df, ma_size):
     return ma
 
 def macrossover(t_start, t_end, t_back, data, sma_long_size=20, sma_short_size=5, candle_size=5):
-    global best
     candles = gen_candles(data, t_start - t_back, t_end, candle_size)
     pips_profit = 0
     flag = True
@@ -125,21 +123,24 @@ def macrossover(t_start, t_end, t_back, data, sma_long_size=20, sma_short_size=5
             n_trans += 1
 
     # print(f"Pip Profit = {pips_profit} :: SMA Long = {sma_long_size}, SMA Short {sma_short_size}, Candle Size = {candle_size}")
-    total_profit = pips_profit - (0 * n_trans)
-    if total_profit > best[0]:
-        best = [total_profit]
-        print(f"Pip Profit = {pips_profit} :: SMA Long = {sma_long_size}, SMA Short {sma_short_size}, Candle Size = {candle_size}")
-    # return [pips_profit - (0 * n_trans), sma_long_size, sma_short_size, candle_size, n_trans] # 0 if for forex fees normally 1.5
+
+    return [pips_profit - (0 * n_trans), sma_long_size, sma_short_size, candle_size, n_trans] # 0 if for forex fees normally 1.5
+
+
+def worker(input, output, t_start, t_end, t_back, raw_data):
+    for args in iter(input.get, 'STOP'):
+        output.put(macrossover(t_start, t_end, t_back, raw_data, args[0], args[1], args[2]))
 
 
 if __name__ == "__main__":
+    freeze_support()
+    start_time = time.time()
     config = configparser.ConfigParser()
     config.read("config.ini")
     t_start = int(config["backtest"]["StartTimestamp"])
     t_end = int(config["backtest"]["EndTimestamp"])
     t_back = 604800 # seconds in a week
     asset = "BTCUSDT"
-
 
     raw_data = database.db_slice(asset, t_start, t_end)
     # Convert data from database to pandas dataframe - USE ONLY FOR NEW GEN_CANLDES
@@ -162,28 +163,59 @@ if __name__ == "__main__":
         total_runs = len(combs)
         logger.debug(f"Running {total_runs} simulations...")
 
-        while True:
-            if config["backtest"]["SampleMethod"] == "random":
-                sma_long_size = random.randrange(int(config["bt_macrossover"]["SMALongRange"].split(",")[0]),
-                                                 int(config["bt_macrossover"]["SMALongRange"].split(",")[1]) + 1,
-                                                 int(config["bt_macrossover"]["SMALongRange"].split(",")[2]))
-                sma_short_size = random.randrange(int(config["bt_macrossover"]["SMAShortRange"].split(",")[0]),
-                                                 int(config["bt_macrossover"]["SMAShortRange"].split(",")[1]) + 1,
-                                                 int(config["bt_macrossover"]["SMAShortRange"].split(",")[2]))
-                candle_size = random.randrange(int(config["bt_macrossover"]["CandleSizeRange"].split(",")[0]),
-                                               int(config["bt_macrossover"]["CandleSizeRange"].split(",")[1]) + 1,
-                                               int(config["bt_macrossover"]["CandleSizeRange"].split(",")[2]))
-            if config['backtest']['SampleMethod'] == 'complete' and len(combs) == 0:
-                break
-            if config['backtest']['SampleMethod'] == 'complete':
-                sma_long_size = combs[0][0]
-                sma_short_size = combs[0][1]
-                candle_size = combs[0][2]
-                combs.popleft()
-            t = threading.Thread(target=macrossover, args=(t_start, t_end, t_back, raw_data, sma_long_size, sma_short_size, candle_size,), daemon=True)
-            t.start()
-            if (total_runs - len(combs) + 1) % 500 == 0:
-                logger.debug(f"Total runs so far: {total_runs - len(combs) + 1}")
-            if config["backtest"]["SampleMethod"] == "manual":
-                best = [result[0], result[1], result[2], result[3], result[4]]
-                print(f"Pip Profit = {round(result[0], 4)} :: SMA Long = {result[1]}, SMA Short {result[2]}, Candle Size = {result[3]}, Transactions = {result[4]}")
+        NUMBER_OF_PROCESSES = 4
+        task_queue = Queue()
+        done_queue = Queue()
+
+        for item in combs:
+            task_queue.put(item)
+
+        processes = [Process(target=worker, args=(task_queue, done_queue, t_start, t_end, t_back, raw_data,)) for i in range(NUMBER_OF_PROCESSES)]
+        for process in processes:
+            process.start()
+
+        results = []
+        for i in range(total_runs):
+            results.append(done_queue.get())
+            if (i + 1) % 500 == 0:
+                logger.debug(f"Total runs so far: {i}")
+
+        for i in range(NUMBER_OF_PROCESSES):
+            task_queue.put('STOP')
+        
+        for process in processes:
+            process.join()
+            process.close()
+
+        result = max(results, key=lambda x: x[0])
+        print(result)
+
+        logger.debug(f"Time taken: {time.time() - start_time} s")
+
+        # while True:
+            # if config["backtest"]["SampleMethod"] == "random":
+            #     sma_long_size = random.randrange(int(config["bt_macrossover"]["SMALongRange"].split(",")[0]),
+            #                                      int(config["bt_macrossover"]["SMALongRange"].split(",")[1]) + 1,
+            #                                      int(config["bt_macrossover"]["SMALongRange"].split(",")[2]))
+            #     sma_short_size = random.randrange(int(config["bt_macrossover"]["SMAShortRange"].split(",")[0]),
+            #                                      int(config["bt_macrossover"]["SMAShortRange"].split(",")[1]) + 1,
+            #                                      int(config["bt_macrossover"]["SMAShortRange"].split(",")[2]))
+            #     candle_size = random.randrange(int(config["bt_macrossover"]["CandleSizeRange"].split(",")[0]),
+            #                                    int(config["bt_macrossover"]["CandleSizeRange"].split(",")[1]) + 1,
+            #                                    int(config["bt_macrossover"]["CandleSizeRange"].split(",")[2]))
+
+            # if config['backtest']['SampleMethod'] == 'complete' and len(combs) == 0:
+            #     break
+            # if config['backtest']['SampleMethod'] == 'complete':
+            #     sma_long_size = combs[0][0]
+            #     sma_short_size = combs[0][1]
+            #     candle_size = combs[0][2]
+            #     combs.popleft()
+            # t = threading.Thread(target=macrossover, args=(t_start, t_end, t_back, raw_data, sma_long_size, sma_short_size, candle_size,), daemon=True)
+            # t.start()
+            # if (total_runs - len(combs) + 1) % 500 == 0:
+            #     logger.debug(f"Total runs so far: {total_runs - len(combs) + 1}")
+
+            # if config["backtest"]["SampleMethod"] == "manual":
+            #     best = [result[0], result[1], result[2], result[3], result[4]]
+            #     print(f"Pip Profit = {round(result[0], 4)} :: SMA Long = {result[1]}, SMA Short {result[2]}, Candle Size = {result[3]}, Transactions = {result[4]}")

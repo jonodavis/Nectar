@@ -125,6 +125,7 @@ def macrossover(t_start, t_end, t_back, data, sma_long_size=20, sma_short_size=5
 
 
 if __name__ == "__main__":
+    start_time = time.time()
     config = configparser.ConfigParser()
     config.read("config.ini")
     t_start = int(config["backtest"]["StartTimestamp"])
@@ -183,3 +184,4 @@ if __name__ == "__main__":
                 # we have a better result
                 best = [result[0], result[1], result[2], result[3], result[4]]
                 print(f"Pip Profit = {round(result[0], 4)} :: SMA Long = {result[1]}, SMA Short {result[2]}, Candle Size = {result[3]}, Transactions = {result[4]}")
+        logger.debug(f"Time taken: {time.time() - start_time}s")
