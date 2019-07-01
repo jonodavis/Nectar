@@ -126,6 +126,39 @@ def macrossover(t_start, t_end, t_back, data, sma_long_size=20, sma_short_size=5
 
     return [pips_profit - (0 * n_trans), sma_long_size, sma_short_size, candle_size, n_trans] # 0 if for forex fees normally 1.5
 
+def complete(combs, t_start, t_end, t_back, raw_data):
+    start_time = time.time()
+    total_runs = len(combs)
+    logger.debug(f"Running {total_runs} simulations...")
+
+    NUMBER_OF_PROCESSES = 4
+    task_queue = Queue()
+    done_queue = Queue()
+
+    for item in combs:
+        task_queue.put(item)
+
+    processes = [Process(target=worker, args=(task_queue, done_queue, t_start, t_end, t_back, raw_data,)) for i in range(NUMBER_OF_PROCESSES)]
+    for process in processes:
+        process.start()
+
+    results = []
+    for i in range(total_runs):
+        results.append(done_queue.get())
+        if (i + 1) % 500 == 0:
+            logger.debug(f"Total runs so far: {i + 1}")
+
+    for i in range(NUMBER_OF_PROCESSES):
+        task_queue.put('STOP')
+    
+    for process in processes:
+        process.join()
+
+    result = max(results, key=lambda x: x[0])
+    print(f"Pip Profit = {result[0]} :: SMA Long = {result[1]}, SMA Short {result[2]}, Candle Size = {result[3]}")
+
+    logger.debug(f"Time taken: {time.time() - start_time} s")
+
 
 def worker(input, output, t_start, t_end, t_back, raw_data):
     for args in iter(input.get, 'STOP'):
@@ -155,66 +188,10 @@ if __name__ == "__main__":
             sma_long_size = int(config['bt_crossover']['SMALong'])
             sma_short_size = int(config['bt_crossover']['SMAShort'])
             candle_size = int(config['bt_crossover']['CandleSize'])
+            print(macrossover(t_start, t_end, t_back, raw_data, sma_long_size, sma_short_size, candle_size))
         elif config["backtest"]["SampleMethod"] == "complete":
             for i in range(int(config['bt_macrossover']['SMALongRange'].split(",")[0]), int(config['bt_macrossover']['SMALongRange'].split(",")[1]) + 1):
                 for j in range(int(config['bt_macrossover']['SMAShortRange'].split(",")[0]), int(config['bt_macrossover']['SMAShortRange'].split(",")[1]) + 1):
                     for k in range(int(config['bt_macrossover']['CandleSizeRange'].split(",")[0]), int(config['bt_macrossover']['CandleSizeRange'].split(",")[1]) + 1):
                         combs.append([i,j,k])
-        total_runs = len(combs)
-        logger.debug(f"Running {total_runs} simulations...")
-
-        NUMBER_OF_PROCESSES = 4
-        task_queue = Queue()
-        done_queue = Queue()
-
-        for item in combs:
-            task_queue.put(item)
-
-        processes = [Process(target=worker, args=(task_queue, done_queue, t_start, t_end, t_back, raw_data,)) for i in range(NUMBER_OF_PROCESSES)]
-        for process in processes:
-            process.start()
-
-        results = []
-        for i in range(total_runs):
-            results.append(done_queue.get())
-            if (i + 1) % 500 == 0:
-                logger.debug(f"Total runs so far: {i + 1}")
-
-        for i in range(NUMBER_OF_PROCESSES):
-            task_queue.put('STOP')
-        
-        for process in processes:
-            process.join()
-
-        result = max(results, key=lambda x: x[0])
-        print(result)
-
-        logger.debug(f"Time taken: {time.time() - start_time} s")
-
-        # while True:
-            # if config["backtest"]["SampleMethod"] == "random":
-            #     sma_long_size = random.randrange(int(config["bt_macrossover"]["SMALongRange"].split(",")[0]),
-            #                                      int(config["bt_macrossover"]["SMALongRange"].split(",")[1]) + 1,
-            #                                      int(config["bt_macrossover"]["SMALongRange"].split(",")[2]))
-            #     sma_short_size = random.randrange(int(config["bt_macrossover"]["SMAShortRange"].split(",")[0]),
-            #                                      int(config["bt_macrossover"]["SMAShortRange"].split(",")[1]) + 1,
-            #                                      int(config["bt_macrossover"]["SMAShortRange"].split(",")[2]))
-            #     candle_size = random.randrange(int(config["bt_macrossover"]["CandleSizeRange"].split(",")[0]),
-            #                                    int(config["bt_macrossover"]["CandleSizeRange"].split(",")[1]) + 1,
-            #                                    int(config["bt_macrossover"]["CandleSizeRange"].split(",")[2]))
-
-            # if config['backtest']['SampleMethod'] == 'complete' and len(combs) == 0:
-            #     break
-            # if config['backtest']['SampleMethod'] == 'complete':
-            #     sma_long_size = combs[0][0]
-            #     sma_short_size = combs[0][1]
-            #     candle_size = combs[0][2]
-            #     combs.popleft()
-            # t = threading.Thread(target=macrossover, args=(t_start, t_end, t_back, raw_data, sma_long_size, sma_short_size, candle_size,), daemon=True)
-            # t.start()
-            # if (total_runs - len(combs) + 1) % 500 == 0:
-            #     logger.debug(f"Total runs so far: {total_runs - len(combs) + 1}")
-
-            # if config["backtest"]["SampleMethod"] == "manual":
-            #     best = [result[0], result[1], result[2], result[3], result[4]]
-            #     print(f"Pip Profit = {round(result[0], 4)} :: SMA Long = {result[1]}, SMA Short {result[2]}, Candle Size = {result[3]}, Transactions = {result[4]}")
+            complete(combs, t_start, t_end, t_back, raw_data)
