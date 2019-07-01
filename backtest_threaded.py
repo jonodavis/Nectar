@@ -178,14 +178,13 @@ if __name__ == "__main__":
         for i in range(total_runs):
             results.append(done_queue.get())
             if (i + 1) % 500 == 0:
-                logger.debug(f"Total runs so far: {i}")
+                logger.debug(f"Total runs so far: {i + 1}")
 
         for i in range(NUMBER_OF_PROCESSES):
             task_queue.put('STOP')
         
         for process in processes:
             process.join()
-            process.close()
 
         result = max(results, key=lambda x: x[0])
         print(result)
