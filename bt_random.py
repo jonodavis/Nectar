@@ -82,7 +82,7 @@ if __name__=="__main__":
 
     profits = []
     pip_range = [5, 51]
-    n_sims = 100
+    n_sims = 1
 
     for pips in range(pip_range[0], pip_range[1]):
         logger.debug(f"Running for stoploss: {pips}")

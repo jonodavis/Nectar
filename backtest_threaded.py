@@ -40,6 +40,13 @@ def gen_candles(orig_raw_data, start, end, candle_size):
         candle_data_pd.append([i[0], i[1]["open"], i[1]["high"], i[1]["low"], i[1]["close"], i[1]["volume"]])
     df = pd.DataFrame(candle_data_pd, columns=["unixtimestamp", "open", "high", "low", "close", "volume"])
 
+    # trace = go.Candlestick(x = df.unixtimestamp,
+    #                        open = df.open,
+    #                        high = df.high,
+    #                        low = df.low,
+    #                        close = df.close)
+    # data = [trace]
+    # py.plot(data)
     return df
 
 # Attempt to optimize generating of candles - ended up slower
@@ -79,18 +86,19 @@ def gen_candles_old(raw_data, asset, start, end, candle_size):
 
 
 def exponential_moving_average(df, ema_size):
-    ema = df.close.ewm(span = ema_size, min_periods = ema_size - 1, adjust=False).mean()
+    ema = df.close.ewm(span=ema_size, min_periods=ema_size - 1, adjust=False).mean()
     return ema
 
 def moving_average(df, ma_size):
     ma = df.close.rolling(ma_size).mean()
     return ma
 
-def macrossover(t_start, t_end, t_back, data, sma_long_size=20, sma_short_size=5, candle_size=5):
+def macrossover(t_start, t_end, t_back, stoploss, data, sma_long_size=20, sma_short_size=5, candle_size=5):
     candles = gen_candles(data, t_start - t_back, t_end, candle_size)
     pips_profit = 0
     flag = True
     n_trans = 0
+    takeprofit = 2 * stoploss
 
     sma_long_v = exponential_moving_average(candles, sma_long_size)
     sma_short_v = exponential_moving_average(candles, sma_short_size)
@@ -111,34 +119,61 @@ def macrossover(t_start, t_end, t_back, data, sma_long_size=20, sma_short_size=5
             flag = False
             continue
 
+        # switch position when MAs crossover 
         if sma_long > sma_short and position != "short":
             pips_profit += (row.close - prev_close) - ((prev_close + row.close) / 2) * 0.002 # CRYPTO FEES 0.1% PER TRANSACTION
             position = "short"
             prev_close = row.close
             n_trans += 1
-        elif sma_long < sma_short and position != "long":
+            continue
+        if sma_long < sma_short and position != "long":
             pips_profit += (prev_close - row.close) - ((prev_close + row.close) / 2) * 0.002 # CRYPTO FEES 0.1% PER TRANSACTION
             position = "long"
             prev_close = row.close
             n_trans += 1
-
+            continue
+        # short taking stoploss
+        if stoploss != 0:
+            if position == "short" and (prev_close + stoploss) <= row.close:
+                pips_profit = pips_profit - stoploss - ((prev_close + row.close) / 2) * 0.002 # CRYPTO FEES 0.1% PER TRANSACTION
+                prev_close = row.close
+                n_trans += 1
+                continue
+            # short taking takeprofit
+            if position == "short" and (prev_close - takeprofit) >= row.close:
+                pips_profit = pips_profit + takeprofit - ((prev_close + row.close) / 2) * 0.002 # CRYPTO FEES 0.1% PER TRANSACTION
+                prev_close = row.close
+                n_trans += 1
+                continue
+            # long taking stoploss
+            if position == "long" and (prev_close - stoploss) >= row.close:
+                pips_profit = pips_profit - stoploss - ((prev_close + row.close) / 2) * 0.002 # CRYPTO FEES 0.1% PER TRANSACTION
+                prev_close = row.close
+                n_trans += 1
+                continue
+            # long taking takeprofit
+            if position == "long" and (prev_close + takeprofit) <= row.close:
+                pips_profit = pips_profit + takeprofit - ((prev_close + row.close) / 2) * 0.002
+                prev_close = row.close
+                n_trans += 1
+                continue
     # print(f"Pip Profit = {pips_profit} :: SMA Long = {sma_long_size}, SMA Short {sma_short_size}, Candle Size = {candle_size}")
 
     return [pips_profit - (0 * n_trans), sma_long_size, sma_short_size, candle_size, n_trans] # 0 if for forex fees normally 1.5
 
-def complete(combs, t_start, t_end, t_back, raw_data):
+def complete(combs, t_start, t_end, t_back, stoploss, raw_data):
     start_time = time.time()
     total_runs = len(combs)
     logger.debug(f"Running {total_runs} simulations...")
 
-    NUMBER_OF_PROCESSES = 4
+    NUMBER_OF_PROCESSES = 2
     task_queue = Queue()
     done_queue = Queue()
 
     for item in combs:
         task_queue.put(item)
 
-    processes = [Process(target=worker, args=(task_queue, done_queue, t_start, t_end, t_back, raw_data,)) for i in range(NUMBER_OF_PROCESSES)]
+    processes = [Process(target=worker, args=(task_queue, done_queue, t_start, t_end, t_back, stoploss, raw_data,)) for i in range(NUMBER_OF_PROCESSES)]
     for process in processes:
         process.start()
 
@@ -155,14 +190,16 @@ def complete(combs, t_start, t_end, t_back, raw_data):
         process.join()
 
     result = max(results, key=lambda x: x[0])
-    print(f"Pip Profit = {result[0]} :: SMA Long = {result[1]}, SMA Short {result[2]}, Candle Size = {result[3]}")
+    print(f"Pip Profit = {result[0]} :: SMA Long = {result[1]}, SMA Short {result[2]}, Candle Size = {result[3]}, Transactions = {result[4]}")
 
     logger.debug(f"Time taken: {time.time() - start_time} s")
 
+    return result
 
-def worker(input, output, t_start, t_end, t_back, raw_data):
+
+def worker(input, output, t_start, t_end, t_back, stoploss, raw_data):
     for args in iter(input.get, 'STOP'):
-        output.put(macrossover(t_start, t_end, t_back, raw_data, args[0], args[1], args[2]))
+        output.put(macrossover(t_start, t_end, t_back, stoploss, raw_data, args[0], args[1], args[2]))
 
 
 if __name__ == "__main__":
@@ -190,8 +227,11 @@ if __name__ == "__main__":
             candle_size = int(config['bt_crossover']['CandleSize'])
             print(macrossover(t_start, t_end, t_back, raw_data, sma_long_size, sma_short_size, candle_size))
         elif config["backtest"]["SampleMethod"] == "complete":
+            profits = []
             for i in range(int(config['bt_macrossover']['SMALongRange'].split(",")[0]), int(config['bt_macrossover']['SMALongRange'].split(",")[1]) + 1):
                 for j in range(int(config['bt_macrossover']['SMAShortRange'].split(",")[0]), int(config['bt_macrossover']['SMAShortRange'].split(",")[1]) + 1):
                     for k in range(int(config['bt_macrossover']['CandleSizeRange'].split(",")[0]), int(config['bt_macrossover']['CandleSizeRange'].split(",")[1]) + 1):
                         combs.append([i,j,k])
-            complete(combs, t_start, t_end, t_back, raw_data)
+            for stoploss in range(10, 12):
+                profits.append(complete(combs, t_start, t_end, t_back, stoploss, raw_data))
+            print(max(profits, key=lambda x: x[0]))
