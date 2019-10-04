@@ -232,6 +232,7 @@ if __name__ == "__main__":
                 for j in range(int(config['bt_macrossover']['SMAShortRange'].split(",")[0]), int(config['bt_macrossover']['SMAShortRange'].split(",")[1]) + 1):
                     for k in range(int(config['bt_macrossover']['CandleSizeRange'].split(",")[0]), int(config['bt_macrossover']['CandleSizeRange'].split(",")[1]) + 1):
                         combs.append([i,j,k])
-            for stoploss in range(10, 12):
-                profits.append(complete(combs, t_start, t_end, t_back, stoploss, raw_data))
+            # for stoploss in range(10, 12):
+            #     profits.append(complete(combs, t_start, t_end, t_back, stoploss, raw_data))
+            profits.append(complete(combs, t_start, t_end, t_back, 0, raw_data))
             print(max(profits, key=lambda x: x[0]))
